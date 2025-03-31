@@ -25,6 +25,7 @@ export const obtenerProductos = async (): Promise<Producto[]> => {
       id: docSnap.id,
       nombre: data.nombre,
       descripcion: data.descripcion,
+      precio: parseFloat(data.precio),
       stock: data.stock,
       creadoEn: data.creadoEn?.toDate() ?? new Date(),
     }
@@ -43,6 +44,7 @@ export const obtenerProductoPorId = async (id: string): Promise<Producto | null>
     id: snap.id,
     nombre: data.nombre,
     descripcion: data.descripcion,
+    precio: parseFloat(data.precio),
     stock: data.stock,
     creadoEn: data.creadoEn?.toDate() ?? new Date(),
   }

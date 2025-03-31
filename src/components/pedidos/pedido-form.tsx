@@ -119,9 +119,24 @@ export function PedidoForm({ onSuccess }: PedidoFormProps) {
         {/* Productos dinámicos */}
         {fields.map((field, index) => (
           <div
-            key={field.id}
-            className="space-y-4 rounded-md border border-muted p-4 relative"
-          >
+          key={field.id}
+          className="space-y-4 rounded-md border border-muted p-4 relative"
+        >
+          {/* Botón Quitar arriba a la derecha */}
+          {fields.length > 1 && (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="absolute top-2 right-2 z-10"
+              onClick={() => remove(index)}
+            >
+              Quitar
+            </Button>
+          )}
+        
+          {/* Agregá padding-top extra para que el botón no tape el Select */}
+          <div className="pt-6 space-y-4">
             <FormField
               control={form.control}
               name={`productos.${index}.productoId`}
@@ -146,7 +161,7 @@ export function PedidoForm({ onSuccess }: PedidoFormProps) {
                 </FormItem>
               )}
             />
-
+        
             <FormField
               control={form.control}
               name={`productos.${index}.cantidad`}
@@ -186,20 +201,8 @@ export function PedidoForm({ onSuccess }: PedidoFormProps) {
                 );
               }}
             />
-
-            {/* Botón eliminar producto */}
-            {fields.length > 1 && (
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                className="absolute top-2 right-2"
-                onClick={() => remove(index)}
-              >
-                Quitar
-              </Button>
-            )}
           </div>
+        </div>
         ))}
 
         {/* Botón agregar producto */}

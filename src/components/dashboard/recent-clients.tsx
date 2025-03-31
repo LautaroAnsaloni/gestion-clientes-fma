@@ -1,46 +1,48 @@
-import React from 'react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Cliente } from '@/types';
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { Cliente } from '@/types'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 interface RecentClientsProps {
-  clients: Cliente[];
+  clients: Cliente[]
 }
 
 export function RecentClients({ clients }: RecentClientsProps) {
+  const router = useRouter()
+
+  // Ordenar por fecha de registro descendente y tomar los 5 más recientes
+  const clientesRecientes = [...clients]
+    .sort((a, b) =>
+      new Date(b.fechaRegistro).getTime() - new Date(a.fechaRegistro).getTime()
+    )
+    .slice(0, 5)
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Clientes Recientes</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {clients.map((client) => (
-            <div
-              key={client.id}
-              className="flex items-center space-x-4 rounded-md border p-3"
-            >
-              <Avatar>
-                <AvatarFallback>
-                  {client.nombre
-                    .split(' ')
-                    .map((n) => n[0])
-                    .slice(0, 2)
-                    .join('')
-                    .toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 space-y-1">
-                <p className="text-sm font-medium">{client.nombre}</p>
-                <p className="text-xs text-muted-foreground">{client.email}</p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {new Date(client.fechaRegistro).toLocaleDateString('es-AR')}
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
+    <Card className="p-4 space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-lg font-semibold">Clientes Recientes</h3>
+        <Button
+          variant="link"
+          className="text-sm p-0 h-auto"
+          onClick={() => router.push('/clientes')}
+        >
+          Ver todos
+        </Button>
+      </div>
+      <ul className="space-y-2">
+        {clientesRecientes.length > 0 ? (
+          clientesRecientes.map((cliente) => (
+            <li key={cliente.id} className="text-sm border-b pb-2 last:border-b-0">
+              <div className="font-medium">{cliente.nombre}</div>
+              <div className="text-muted-foreground">{cliente.email}</div>
+            </li>
+          ))
+        ) : (
+          <li className="text-sm text-muted-foreground">No hay clientes registrados aún.</li>
+        )}
+      </ul>
     </Card>
-  );
+  )
 }

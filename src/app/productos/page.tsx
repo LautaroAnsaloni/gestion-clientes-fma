@@ -1,63 +1,74 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { DataTable } from '@/components/ui/data-table';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { StockUpdateButton } from '@/components/productos/stock-update-button';
-import { obtenerProductos, eliminarProducto } from '@/data/productoService';
-import { Producto } from '@/types';
-import { formatCurrency } from '@/lib/utils';
-import { Edit, Trash, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { DataTable } from '@/components/ui/data-table'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { StockUpdateButton } from '@/components/productos/stock-update-button'
+import { obtenerProductos, eliminarProducto } from '@/data/productoService'
+import { Producto } from '@/types'
+import { formatCurrency } from '@/lib/utils'
+import { Edit, Trash, Plus } from 'lucide-react'
 
 export default function ProductosPage() {
-  const router = useRouter();
-  const [productos, setProductos] = useState<Producto[]>(obtenerProductos());
-  const [productoAEliminar, setProductoAEliminar] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter()
+  const [productos, setProductos] = useState<Producto[]>([])
+  const [productoAEliminar, setProductoAEliminar] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  const handleDelete = async () => {
-    if (!productoAEliminar) return;
-
-    setIsDeleting(true);
-    try {
-      const resultado = eliminarProducto(productoAEliminar);
-      if (resultado) {
-        setProductos(obtenerProductos());
-      }
-    } catch (error) {
-      console.error('Error al eliminar el producto:', error);
-    } finally {
-      setIsDeleting(false);
-      setProductoAEliminar(null);
+  // 🔁 Cargar productos desde Firestore al iniciar
+  useEffect(() => {
+    const fetchProductos = async () => {
+      const lista = await obtenerProductos()
+      setProductos(lista)
     }
-  };
+    fetchProductos()
+  }, [])
 
-  const handleStockUpdated = () => {
-    // Actualizar la lista de productos
-    setProductos(obtenerProductos());
-  };
+  // 🗑️ Eliminar producto y actualizar lista
+  const handleDelete = async () => {
+    if (!productoAEliminar) return
 
+    setIsDeleting(true)
+    try {
+      await eliminarProducto(productoAEliminar)
+      const listaActualizada = await obtenerProductos()
+      setProductos(listaActualizada)
+    } catch (error) {
+      console.error('Error al eliminar el producto:', error)
+    } finally {
+      setIsDeleting(false)
+      setProductoAEliminar(null)
+    }
+  }
+
+  // 🔄 Actualizar stock y refrescar lista
+  const handleStockUpdated = async () => {
+    const lista = await obtenerProductos()
+    setProductos(lista)
+  }
+
+  // 📊 Columnas de la tabla
   const columns = [
     {
       header: 'Nombre',
-      accessorKey: 'nombre',
+      accessorKey: 'nombre' as const,
     },
     {
       header: 'Descripción',
-      accessorKey: 'descripcion',
+      accessorKey: 'descripcion' as const,
     },
     {
       header: 'Precio',
-      accessorKey: 'precio',
+      accessorKey: 'precio' as const,
       cell: (producto: Producto) => (
         <span>{formatCurrency(producto.precio)}</span>
       ),
     },
     {
       header: 'Stock',
-      accessorKey: 'stock',
+      accessorKey: 'stock' as const,
       cell: (producto: Producto) => (
         <div className="flex items-center">
           <span className={`mr-2 ${producto.stock === 0 ? 'text-destructive' : 'text-primary'}`}>
@@ -70,7 +81,7 @@ export default function ProductosPage() {
         </div>
       ),
     },
-  ];
+  ]
 
   return (
     <div className="space-y-6">
@@ -115,5 +126,6 @@ export default function ProductosPage() {
         isLoading={isDeleting}
       />
     </div>
-  );
+  )
 }
+

@@ -1,15 +1,16 @@
-'use client';
+'use client'
 
-import { useState, useCallback } from 'react';
-import { DashboardCard } from '@/components/ui/dashboard-card';
-import { QuickAction } from '@/components/ui/quick-action';
-import { RecentClients } from '@/components/dashboard/recent-clients';
-import { PendingOrders } from '@/components/dashboard/pending-orders';
-import { StockStatus } from '@/components/dashboard/stock-status';
-import { VerificarDisponibilidad } from '@/components/pedidos/verificar-disponibilidad';
-import { clientes } from '@/data/mockData';
-import { obtenerProductos } from '@/data/productoService';
-import { obtenerPedidosConDetalles, obtenerPedidosPorEstado } from '@/data/pedidoService';
+import { useState, useEffect, useCallback } from 'react'
+import { obtenerClientes } from '@/data/clienteService'
+import { obtenerProductos } from '@/data/productoService'
+import { obtenerPedidosConDetalles, obtenerPedidosPorEstado } from '@/data/pedidoService'
+import { Cliente, Producto } from '@/types'
+import { DashboardCard } from '@/components/ui/dashboard-card'
+import { QuickAction } from '@/components/ui/quick-action'
+import { RecentClients } from '@/components/dashboard/recent-clients'
+import { PendingOrders } from '@/components/dashboard/pending-orders'
+import { StockStatus } from '@/components/dashboard/stock-status'
+import { VerificarDisponibilidad } from '@/components/pedidos/verificar-disponibilidad'
 import {
   Users,
   Package,
@@ -17,29 +18,41 @@ import {
   AlertTriangle,
   UserPlus,
   PackagePlus,
-  ClipboardList
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
+  ClipboardList,
+} from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export default function Home() {
-  const router = useRouter();
+  const router = useRouter()
 
-  // Estados para datos dinámicos
-  const [productos, setProductos] = useState(() => obtenerProductos());
-  const [pedidos, setPedidos] = useState(() => obtenerPedidosConDetalles());
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [productos, setProductos] = useState<Producto[]>([])
+  const [pedidos, setPedidos] = useState([])
 
-  // Calcular estadísticas para el dashboard
-  const totalClientes = clientes.length;
-  const totalProductos = productos.length;
-  const productosEnStock = productos.filter(p => p.stock > 0).length;
-  const pedidosPendientes = obtenerPedidosPorEstado('pendiente');
-  const pedidosDisponibles = obtenerPedidosPorEstado('disponible');
+  // 🔁 Obtener datos de Firestore
+  useEffect(() => {
+    const fetchData = async () => {
+      const clientesDB = await obtenerClientes()
+      const productosDB = await obtenerProductos()
+      const pedidosDB = obtenerPedidosConDetalles() // aún es síncrono
+      setClientes(clientesDB)
+      setProductos(productosDB)
+      setPedidos(pedidosDB)
+    }
+    fetchData()
+  }, [])
 
-  // Función para actualizar los datos después de cambios
-  const actualizarDatos = useCallback(() => {
-    setProductos(obtenerProductos());
-    setPedidos(obtenerPedidosConDetalles());
-  }, []);
+  const actualizarDatos = useCallback(async () => {
+    const productosDB = await obtenerProductos()
+    setProductos(productosDB)
+    setPedidos(obtenerPedidosConDetalles())
+  }, [])
+
+  const totalClientes = clientes.length
+  const totalProductos = productos.length
+  const productosEnStock = productos.filter(p => p.stock > 0).length
+  const pedidosPendientes = obtenerPedidosPorEstado('pendiente')
+  const pedidosDisponibles = obtenerPedidosPorEstado('disponible')
 
   return (
     <div className="py-6">
@@ -102,15 +115,12 @@ export default function Home() {
           <RecentClients clients={clientes} />
         </div>
         <div className="lg:col-span-4">
-          <StockStatus
-            productos={productos}
-            onStockUpdated={actualizarDatos}
-          />
+          <StockStatus productos={productos} onStockUpdated={actualizarDatos} />
         </div>
         <div className="lg:col-span-4">
           <PendingOrders orders={pedidos} />
         </div>
       </div>
     </div>
-  );
+  )
 }

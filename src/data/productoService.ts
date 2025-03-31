@@ -1,88 +1,121 @@
-import { Producto } from '@/types';
-import { productos as productosIniciales } from './mockData';
-import { verificarPedidosPorProducto } from './pedidoService';
+import { db } from '@/lib/firebase'
+import {
+  collection,
+  getDocs,
+  addDoc,
+  doc,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  Timestamp,
+} from 'firebase/firestore'
+import { Producto } from '@/types'
+import { verificarPedidosPorProducto } from './pedidoService'
 
-// Usamos un array mutable para simular una base de datos
-let productos = [...productosIniciales];
-
-/**
- * Obtiene todos los productos
- */
-export const obtenerProductos = (): Producto[] => {
-  return [...productos];
-};
-
-/**
- * Obtiene un producto por su ID
- */
-export const obtenerProductoPorId = (id: string): Producto | undefined => {
-  return productos.find(p => p.id === id);
-};
+const productosRef = collection(db, 'productos')
 
 /**
- * Crea un nuevo producto
+ * Obtiene todos los productos desde Firestore
  */
-export const crearProducto = (producto: Omit<Producto, 'id'>): Producto => {
-  const nuevoProducto: Producto = {
+export const obtenerProductos = async (): Promise<Producto[]> => {
+  const snapshot = await getDocs(productosRef)
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data()
+    return {
+      id: docSnap.id,
+      nombre: data.nombre,
+      descripcion: data.descripcion,
+      stock: data.stock,
+      creadoEn: data.creadoEn?.toDate() ?? new Date(),
+    }
+  })
+}
+
+/**
+ * Obtiene un producto por su ID desde Firestore
+ */
+export const obtenerProductoPorId = async (id: string): Promise<Producto | null> => {
+  const ref = doc(db, 'productos', id)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return null
+  const data = snap.data()
+  return {
+    id: snap.id,
+    nombre: data.nombre,
+    descripcion: data.descripcion,
+    stock: data.stock,
+    creadoEn: data.creadoEn?.toDate() ?? new Date(),
+  }
+}
+
+/**
+ * Crea un nuevo producto en Firestore
+ */
+export const crearProducto = async (
+  producto: Omit<Producto, 'id' | 'creadoEn'>
+): Promise<Producto> => {
+  const docRef = await addDoc(productosRef, {
     ...producto,
-    id: (productos.length + 1).toString(),
-  };
+    creadoEn: Timestamp.now(),
+  })
 
-  productos.push(nuevoProducto);
-  return nuevoProducto;
-};
+  return {
+    id: docRef.id,
+    ...producto,
+    creadoEn: new Date(),
+  }
+}
 
 /**
- * Actualiza un producto existente
+ * Actualiza un producto y verifica si hay pedidos que se pueden satisfacer
  */
-export const actualizarProducto = (id: string, datosActualizados: Partial<Omit<Producto, 'id'>>): Producto | undefined => {
-  const index = productos.findIndex(p => p.id === id);
+export const actualizarProducto = async (
+  id: string,
+  datosActualizados: Partial<Omit<Producto, 'id' | 'creadoEn'>>
+): Promise<Producto | null> => {
+  const ref = doc(db, 'productos', id)
 
-  if (index === -1) return undefined;
+  await updateDoc(ref, datosActualizados)
 
-  const productoActualizado = {
-    ...productos[index],
-    ...datosActualizados
-  };
+  const actualizado = await obtenerProductoPorId(id)
+  if (!actualizado) return null
 
-  productos[index] = productoActualizado;
-
-  // Si se actualizó el stock, verificar pedidos pendientes
+  // Si se actualizó el stock, verificar pedidos
   if (typeof datosActualizados.stock !== 'undefined') {
-    verificarPedidosPorProducto(id);
+    verificarPedidosPorProducto(id)
   }
 
-  return productoActualizado;
-};
+  return actualizado
+}
 
 /**
- * Actualiza solamente el stock de un producto
- * @returns Un objeto con el producto actualizado y los pedidos que ahora pueden satisfacerse
+ * Actualiza solamente el stock de un producto y verifica pedidos
  */
-export const actualizarStock = (id: string, stock: number): {
-  producto?: Producto;
-  pedidosSatisfechos: ReturnType<typeof verificarPedidosPorProducto>;
-} => {
-  const productoActualizado = actualizarProducto(id, { stock });
+export const actualizarStock = async (
+  id: string,
+  stock: number
+): Promise<{
+  producto?: Producto
+  pedidosSatisfechos: ReturnType<typeof verificarPedidosPorProducto>
+}> => {
+  const productoActualizado = await actualizarProducto(id, { stock })
 
   if (!productoActualizado) {
-    return { producto: undefined, pedidosSatisfechos: [] };
+    return { producto: undefined, pedidosSatisfechos: [] }
   }
 
-  // Verificar si hay pedidos pendientes que ahora pueden satisfacerse
-  const pedidosSatisfechos = verificarPedidosPorProducto(id);
+  const pedidosSatisfechos = verificarPedidosPorProducto(id)
 
   return {
     producto: productoActualizado,
-    pedidosSatisfechos
-  };
-};
+    pedidosSatisfechos,
+  }
+}
 
 /**
- * Elimina un producto por su ID
+ * Elimina un producto de Firestore
  */
-export const eliminarProducto = (id: string): boolean => {
-  const productosAnteriores = productos.length;
-  productos = productos.filter(p => p.id !== id);
-  return productosAnteriores > productos.length;
-};
+export const eliminarProducto = async (id: string): Promise<void> => {
+  const ref = doc(db, 'productos', id)
+  await deleteDoc(ref)
+}

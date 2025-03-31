@@ -1,68 +1,58 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ProductoForm } from '@/components/productos/producto-form';
-import { obtenerProductoPorId } from '@/data/productoService';
-import { Producto } from '@/types';
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { obtenerProductoPorId, actualizarProducto } from '@/data/productoService'
+import { Producto } from '@/types'
+import { ProductoForm } from '@/components/productos/producto-form'
+import { useToast } from '@/hooks/use-toast'
 
 interface EditarProductoPageProps {
-  params: {
-    id: string;
-  };
+  params: { id: string }
 }
 
 export default function EditarProductoPage({ params }: EditarProductoPageProps) {
-  const { id } = params;
-  const router = useRouter();
-  const [producto, setProducto] = useState<Producto | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { id } = params
+  const router = useRouter()
+  const { toast } = useToast()
+
+  const [producto, setProducto] = useState<Producto | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchProducto = () => {
-      try {
-        const productoEncontrado = obtenerProductoPorId(id);
-        if (productoEncontrado) {
-          setProducto(productoEncontrado);
-        } else {
-          setError('No se encontró el producto');
-          setTimeout(() => {
-            router.push('/productos');
-          }, 2000);
-        }
-      } catch (err) {
-        setError('Error al cargar el producto');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    const fetchProducto = async () => {
+      const data = await obtenerProductoPorId(id)
+      setProducto(data)
+      setLoading(false)
+    }
+    fetchProducto()
+  }, [id])
 
-    fetchProducto();
-  }, [id, router]);
-
-  if (isLoading) {
-    return (
-      <div className="flex h-40 items-center justify-center">
-        <p>Cargando...</p>
-      </div>
-    );
+  const handleSubmit = async (data: Partial<Producto>) => {
+    try {
+      await actualizarProducto(id, data)
+      toast({
+        title: 'Producto actualizado',
+        description: 'Los cambios fueron guardados correctamente.',
+      })
+      router.push('/productos')
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Ocurrió un error al actualizar el producto.',
+      })
+    }
   }
 
-  if (error) {
-    return (
-      <div className="flex h-40 items-center justify-center">
-        <p className="text-destructive">{error}</p>
-      </div>
-    );
-  }
+  if (loading) return <p className="text-center py-8">Cargando...</p>
+
+  if (!producto) return <p className="text-center py-8 text-destructive">Producto no encontrado.</p>
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl mx-auto py-6 space-y-6">
       <h1 className="text-2xl font-bold">Editar Producto</h1>
-      <div className="mx-auto max-w-2xl">
-        {producto && <ProductoForm producto={producto} />}
-      </div>
+      <ProductoForm producto={producto} onSubmit={handleSubmit} />
     </div>
-  );
+  )
 }

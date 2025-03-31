@@ -1,10 +1,10 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { Button } from '@/components/ui/button';
+import { useState } from 'react'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -12,31 +12,31 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Producto } from '@/types';
-import { actualizarStock } from '@/data/productoService';
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Producto } from '@/types'
+import { actualizarStock } from '@/data/productoService'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter
-} from '@/components/ui/dialog';
-import { notifyAvailableOrders, showNotification } from '@/components/ui/notifications';
+} from '@/components/ui/dialog'
+import { useToast } from '@/hooks/use-toast'
+import { notifyAvailableOrders } from '@/components/ui/notifications'
 
-// Esquema de validación
 const stockSchema = z.object({
   stock: z.coerce.number().min(0, { message: 'El stock no puede ser negativo' }),
-});
+})
 
-type StockFormValues = z.infer<typeof stockSchema>;
+type StockFormValues = z.infer<typeof stockSchema>
 
 interface ActualizarStockFormProps {
-  producto: Producto;
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
+  producto: Producto
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
 }
 
 export function ActualizarStockForm({
@@ -45,50 +45,53 @@ export function ActualizarStockForm({
   onClose,
   onSuccess,
 }: ActualizarStockFormProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { toast } = useToast()
 
   const form = useForm<StockFormValues>({
     resolver: zodResolver(stockSchema),
     defaultValues: {
       stock: producto.stock,
     },
-  });
+  })
 
   const onSubmit = async (values: StockFormValues) => {
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
-      const result = await actualizarStock(producto.id, values.stock);
+      const result = await actualizarStock(producto.id, values.stock)
 
       if (result.producto) {
-        // Notificar al usuario sobre la actualización exitosa
-        showNotification(
-          'Stock actualizado',
-          `Stock del producto "${producto.nombre}" actualizado a ${values.stock} unidades.`,
-          'success'
-        );
+        toast({
+          title: 'Stock actualizado',
+          description: `El producto "${producto.nombre}" tiene ahora ${values.stock} unidades.`,
+        })
 
-        // Si hay pedidos que ahora pueden satisfacerse, mostrar notificación especial
         if (result.pedidosSatisfechos.length > 0) {
-          // Usar setTimeout para que aparezca después de la primera notificación
+          toast({
+            title: 'Pedidos pendientes disponibles',
+            description: `Se pueden satisfacer ${result.pedidosSatisfechos.length} pedidos.`,
+          })
+
+          // Si además querés notificación visual personalizada
           setTimeout(() => {
-            notifyAvailableOrders(result.pedidosSatisfechos);
-          }, 300);
+            notifyAvailableOrders(result.pedidosSatisfechos)
+          }, 300)
         }
 
-        onSuccess();
-        onClose();
+        onSuccess()
+        onClose()
       }
     } catch (error) {
-      console.error('Error al actualizar el stock:', error);
-      showNotification(
-        'Error',
-        'Ocurrió un error al actualizar el stock. Intente nuevamente.',
-        'error'
-      );
+      console.error('Error al actualizar el stock:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'No se pudo actualizar el stock. Intentalo nuevamente.',
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -110,8 +113,7 @@ export function ActualizarStockForm({
                       placeholder="Cantidad"
                       {...field}
                       onChange={(e) => {
-                        // Permitir solo valores numéricos enteros no negativos
-                        field.onChange(Math.max(0, Math.floor(e.target.valueAsNumber || 0)));
+                        field.onChange(Math.max(0, Math.floor(e.target.valueAsNumber || 0)))
                       }}
                     />
                   </FormControl>
@@ -136,5 +138,5 @@ export function ActualizarStockForm({
         </Form>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

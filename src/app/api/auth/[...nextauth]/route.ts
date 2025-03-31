@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import dbConnect from '@/lib/mongodb';
+import dbConnect from '@/lib/firebase';
 import Usuario from '@/models/Usuario';
 
 // Necesitaremos estas variables de entorno en producción

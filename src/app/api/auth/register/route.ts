@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import dbConnect from '@/lib/mongodb';
+import dbConnect from '@/lib/firebase';
 import Usuario from '@/models/Usuario';
 
 export async function POST(req: NextRequest) {

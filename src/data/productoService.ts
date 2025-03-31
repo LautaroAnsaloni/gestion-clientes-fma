@@ -98,7 +98,7 @@ export const actualizarStock = async (
   stock: number
 ): Promise<{
   producto?: Producto
-  pedidosSatisfechos: ReturnType<typeof verificarPedidosPorProducto>
+  pedidosSatisfechos: Awaited<ReturnType<typeof verificarPedidosPorProducto>>
 }> => {
   const productoActualizado = await actualizarProducto(id, { stock })
 
@@ -106,7 +106,7 @@ export const actualizarStock = async (
     return { producto: undefined, pedidosSatisfechos: [] }
   }
 
-  const pedidosSatisfechos = verificarPedidosPorProducto(id)
+  const pedidosSatisfechos = await verificarPedidosPorProducto(id)
 
   return {
     producto: productoActualizado,

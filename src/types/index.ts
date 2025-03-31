@@ -14,13 +14,17 @@ export interface Producto {
   stock: number;
 }
 
+export interface ProductoPedido {
+  productoId: string;
+  cantidad: number;
+  producto?: Producto;
+}
+
 export interface PedidoPendiente {
   id: string;
   clienteId: string;
-  productoId: string;
-  cantidad: number;
+  productos: ProductoPedido[];
   fechaSolicitud: string;
   estado: 'pendiente' | 'disponible' | 'entregado';
   cliente?: Cliente;
-  producto?: Producto;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
@@ -14,20 +14,29 @@ import { Edit, Trash, Plus, Tag } from 'lucide-react';
 
 export default function PedidosPage() {
   const router = useRouter();
-  const [pedidos, setPedidos] = useState<PedidoPendiente[]>(obtenerPedidosConDetalles());
+
+  const [pedidos, setPedidos] = useState<PedidoPendiente[]>([]);
   const [pedidoAEliminar, setPedidoAEliminar] = useState<string | null>(null);
   const [pedidoAActualizar, setPedidoAActualizar] = useState<PedidoPendiente | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 🔁 Obtener pedidos desde Firestore
+  useEffect(() => {
+    const fetchPedidos = async () => {
+      const data = await obtenerPedidosConDetalles();
+      setPedidos(data);
+    };
+    fetchPedidos();
+  }, []);
 
   const handleDelete = async () => {
     if (!pedidoAEliminar) return;
 
     setIsDeleting(true);
     try {
-      const resultado = eliminarPedido(pedidoAEliminar);
-      if (resultado) {
-        setPedidos(obtenerPedidosConDetalles());
-      }
+      await eliminarPedido(pedidoAEliminar);
+      const actualizados = await obtenerPedidosConDetalles();
+      setPedidos(actualizados);
     } catch (error) {
       console.error('Error al eliminar el pedido:', error);
     } finally {
@@ -36,9 +45,9 @@ export default function PedidosPage() {
     }
   };
 
-  const handleEstadoUpdated = () => {
-    // Actualizar la lista de pedidos
-    setPedidos(obtenerPedidosConDetalles());
+  const handleEstadoUpdated = async () => {
+    const data = await obtenerPedidosConDetalles();
+    setPedidos(data);
   };
 
   const columns = [
@@ -50,26 +59,27 @@ export default function PedidosPage() {
       ),
     },
     {
-      header: 'Producto',
-      accessorKey: 'producto',
+      header: 'Productos',
+      accessorKey: 'productos',
       cell: (pedido: PedidoPendiente) => (
-        <span>{pedido.producto?.nombre || 'Producto desconocido'}</span>
+        <ul className="text-sm space-y-1">
+          {pedido.productos.map((pp) => (
+            <li key={pp.productoId}>
+              {pp.producto?.nombre || 'Producto'} x {pp.cantidad}
+            </li>
+          ))}
+        </ul>
       ),
-    },
-    {
-      header: 'Cantidad',
-      accessorKey: 'cantidad',
     },
     {
       header: 'Total',
       accessorKey: 'total',
-      cell: (pedido: PedidoPendiente) => (
-        <span>
-          {pedido.producto
-            ? formatCurrency(pedido.producto.precio * pedido.cantidad)
-            : '-'}
-        </span>
-      ),
+      cell: (pedido: PedidoPendiente) => {
+        const total = pedido.productos.reduce((acc, pp) => {
+          return acc + (pp.producto ? pp.producto.precio * pp.cantidad : 0);
+        }, 0);
+        return <span>{formatCurrency(total)}</span>;
+      },
     },
     {
       header: 'Fecha',
@@ -83,7 +93,9 @@ export default function PedidosPage() {
       accessorKey: 'estado',
       cell: (pedido: PedidoPendiente) => (
         <div className="flex items-center">
-          <span className={`mr-2 rounded-full px-2 py-1 text-xs font-semibold ${getEstadoClass(pedido.estado)}`}>
+          <span
+            className={`mr-2 rounded-full px-2 py-1 text-xs font-semibold ${getEstadoClass(pedido.estado)}`}
+          >
             {getEstadoLabel(pedido.estado)}
           </span>
           <Button

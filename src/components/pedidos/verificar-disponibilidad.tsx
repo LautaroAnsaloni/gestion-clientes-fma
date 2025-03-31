@@ -16,7 +16,7 @@ export function VerificarDisponibilidad({ onSuccess }: VerificarDisponibilidadPr
   const handleVerificar = async () => {
     setIsLoading(true);
     try {
-      const pedidosActualizados = verificarDisponibilidadPedidos();
+      const pedidosActualizados = await verificarDisponibilidadPedidos();
 
       // Mostrar notificaciones con la información
       notifyAvailableOrders(pedidosActualizados);

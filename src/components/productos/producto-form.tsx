@@ -22,7 +22,7 @@ const productoSchema = z.object({
     .min(2, { message: "El nombre debe tener al menos 2 caracteres" }),
   descripcion: z
     .string()
-    .min(5, { message: "La descripción debe tener al menos 5 caracteres" }),
+    .min(4, { message: "La descripción debe tener al menos 5 caracteres" }),
   precio: z.coerce
     .number()
     .positive({ message: "El precio debe ser mayor que 0" }),

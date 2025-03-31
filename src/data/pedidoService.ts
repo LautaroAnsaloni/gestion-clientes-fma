@@ -1,194 +1,216 @@
-import { PedidoPendiente } from '@/types';
-import { pedidosPendientes as pedidosIniciales } from './mockData';
-import { obtenerClientePorId } from './clienteService';
-import { obtenerProductoPorId, actualizarStock } from './productoService';
+import { PedidoPendiente, ProductoPedido } from '@/types';
+import { db } from '@/lib/firebase';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  getDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
+  Timestamp
+} from 'firebase/firestore';
+import { obtenerClientePorId, obtenerClientes } from './clienteService';
+import { obtenerProductoPorId, obtenerProductos, actualizarStock } from './productoService';
 
-// Usamos un array mutable para simular una base de datos
-let pedidos = [...pedidosIniciales];
-
-/**
- * Obtiene todos los pedidos pendientes
- */
-export const obtenerPedidos = (): PedidoPendiente[] => {
-  return [...pedidos];
-};
-
-/**
- * Obtiene un pedido por su ID
- */
-export const obtenerPedidoPorId = (id: string): PedidoPendiente | undefined => {
-  return pedidos.find(p => p.id === id);
-};
+const pedidosRef = collection(db, 'pedidos');
 
 /**
- * Obtiene pedidos con detalles completos de cliente y producto
+ * Obtener todos los pedidos (sin enriquecer)
  */
-export const obtenerPedidosConDetalles = (): PedidoPendiente[] => {
-  return pedidos.map(pedido => {
-    const cliente = obtenerClientePorId(pedido.clienteId);
-    const producto = obtenerProductoPorId(pedido.productoId);
-
+export const obtenerPedidos = async (): Promise<PedidoPendiente[]> => {
+  const snapshot = await getDocs(pedidosRef);
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
     return {
-      ...pedido,
-      cliente,
-      producto
+      id: docSnap.id,
+      clienteId: data.clienteId,
+      productos: data.productos,
+      fechaSolicitud: data.fechaSolicitud?.toDate().toISOString().split('T')[0] ?? '',
+      estado: data.estado,
     };
   });
 };
 
 /**
- * Obtiene pedidos filtrados por estado
+ * Obtener un pedido por ID
  */
-export const obtenerPedidosPorEstado = (estado: PedidoPendiente['estado']): PedidoPendiente[] => {
-  return obtenerPedidosConDetalles().filter(p => p.estado === estado);
+export const obtenerPedidoPorId = async (id: string): Promise<PedidoPendiente | null> => {
+  const ref = doc(db, 'pedidos', id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+
+  const data = snap.data();
+  return {
+    id: snap.id,
+    clienteId: data.clienteId,
+    productos: data.productos,
+    fechaSolicitud: data.fechaSolicitud?.toDate().toISOString().split('T')[0] ?? '',
+    estado: data.estado,
+  };
 };
 
 /**
- * Obtiene pedidos pendientes para un producto específico
+ * Crear un pedido nuevo con múltiples productos
  */
-export const obtenerPedidosPendientesPorProducto = (productoId: string): PedidoPendiente[] => {
-  return obtenerPedidosConDetalles().filter(p =>
-    p.estado === 'pendiente' && p.productoId === productoId
-  );
-};
+export const crearPedido = async (
+  pedido: Omit<PedidoPendiente, 'id' | 'fechaSolicitud' | 'estado'>
+): Promise<PedidoPendiente> => {
+  const estado: PedidoPendiente['estado'] = await Promise.all(
+    pedido.productos.map(async (pp) => {
+      const producto = await obtenerProductoPorId(pp.productoId);
+      return producto && producto.stock >= pp.cantidad;
+    })
+  ).then((resultados) => (resultados.every(Boolean) ? 'disponible' : 'pendiente'));
 
-/**
- * Crea un nuevo pedido pendiente
- */
-export const crearPedido = (pedido: Omit<PedidoPendiente, 'id' | 'fechaSolicitud' | 'estado'>): PedidoPendiente => {
-  // Verificar disponibilidad del producto
-  const producto = obtenerProductoPorId(pedido.productoId);
-  const estado = producto && producto.stock >= pedido.cantidad ? 'disponible' : 'pendiente';
+  const docRef = await addDoc(pedidosRef, {
+    clienteId: pedido.clienteId,
+    productos: pedido.productos,
+    fechaSolicitud: Timestamp.now(),
+    estado,
+  });
 
-  const nuevoPedido: PedidoPendiente = {
+  if (estado === 'disponible') {
+    for (const pp of pedido.productos) {
+      const producto = await obtenerProductoPorId(pp.productoId);
+      if (producto) {
+        await actualizarStock(pp.productoId, producto.stock - pp.cantidad);
+      }
+    }
+  }
+
+  return {
+    id: docRef.id,
     ...pedido,
-    id: (pedidos.length + 1).toString(),
     fechaSolicitud: new Date().toISOString().split('T')[0],
     estado,
   };
+};
 
-  pedidos.push(nuevoPedido);
+/**
+ * Actualiza solo el estado de un pedido
+ */
+export const actualizarEstadoPedido = async (
+  id: string,
+  estado: PedidoPendiente['estado']
+): Promise<void> => {
+  const ref = doc(db, 'pedidos', id);
+  await updateDoc(ref, { estado });
+};
 
-  // Si el producto está disponible, reducir el stock
-  if (estado === 'disponible' && producto) {
-    actualizarStock(producto.id, producto.stock - pedido.cantidad);
+/**
+ * Eliminar un pedido por ID
+ */
+export const eliminarPedido = async (id: string): Promise<void> => {
+  const ref = doc(db, 'pedidos', id);
+  await deleteDoc(ref);
+};
+
+/**
+ * ✅ Obtiene los pedidos con cliente y productos enriquecidos
+ */
+export const obtenerPedidosConDetalles = async (): Promise<PedidoPendiente[]> => {
+  const [clientes, productos, pedidos] = await Promise.all([
+    obtenerClientes(),
+    obtenerProductos(),
+    obtenerPedidos(),
+  ]);
+
+  return pedidos.map((pedido) => {
+    const cliente = clientes.find((c) => c.id === pedido.clienteId);
+
+    const productosConDetalles: ProductoPedido[] = pedido.productos.map((pp) => {
+      const producto = productos.find((p) => p.id === pp.productoId);
+      return {
+        ...pp,
+        producto,
+      };
+    });
+
+    return {
+      ...pedido,
+      cliente,
+      productos: productosConDetalles,
+    };
+  });
+};
+
+export const verificarPedidosPorProducto = async (productoId: string): Promise<PedidoPendiente[]> => {
+  const pedidos = await obtenerPedidos();
+  const disponibles: PedidoPendiente[] = [];
+
+  for (const pedido of pedidos) {
+    if (pedido.estado !== 'pendiente') continue;
+
+    // Verificar si este pedido incluye el producto
+    const incluyeProducto = pedido.productos.some(p => p.productoId === productoId);
+    if (!incluyeProducto) continue;
+
+    // Verificar si todo el pedido puede completarse
+    const completo = await Promise.all(
+      pedido.productos.map(async (pp) => {
+        const prod = await obtenerProductoPorId(pp.productoId);
+        return prod && prod.stock >= pp.cantidad;
+      })
+    ).then((r) => r.every(Boolean));
+
+    if (completo) {
+      await actualizarEstadoPedido(pedido.id, 'disponible');
+      disponibles.push({ ...pedido, estado: 'disponible' });
+    }
   }
 
-  return nuevoPedido;
+  return disponibles;
 };
 
 /**
- * Actualiza un pedido existente
+ * Marca un pedido como entregado y ajusta el stock si estaba pendiente
  */
-export const actualizarPedido = (id: string, datosActualizados: Partial<Omit<PedidoPendiente, 'id' | 'fechaSolicitud'>>): PedidoPendiente | undefined => {
-  const index = pedidos.findIndex(p => p.id === id);
+export const marcarPedidoComoEntregado = async (
+  pedidoId: string
+): Promise<void> => {
+  const pedido = await obtenerPedidoPorId(pedidoId);
+  if (!pedido) return;
 
-  if (index === -1) return undefined;
-
-  const pedidoActualizado = {
-    ...pedidos[index],
-    ...datosActualizados
-  };
-
-  pedidos[index] = pedidoActualizado;
-  return pedidoActualizado;
-};
-
-/**
- * Actualiza el estado de un pedido
- */
-export const actualizarEstadoPedido = (id: string, estado: PedidoPendiente['estado']): PedidoPendiente | undefined => {
-  return actualizarPedido(id, { estado });
-};
-
-/**
- * Elimina un pedido por su ID
- */
-export const eliminarPedido = (id: string): boolean => {
-  const pedidosAnteriores = pedidos.length;
-  pedidos = pedidos.filter(p => p.id !== id);
-  return pedidosAnteriores > pedidos.length;
-};
-
-/**
- * Marca un pedido como entregado y actualiza el stock si es necesario
- */
-export const marcarPedidoComoEntregado = (id: string): PedidoPendiente | undefined => {
-  const pedido = obtenerPedidoPorId(id);
-  if (!pedido) return undefined;
-
-  // Si el pedido estaba pendiente (no disponible), reducir el stock del producto
   if (pedido.estado === 'pendiente') {
-    const producto = obtenerProductoPorId(pedido.productoId);
-    if (producto) {
-      actualizarStock(producto.id, Math.max(0, producto.stock - pedido.cantidad));
-    }
-  }
-
-  return actualizarEstadoPedido(id, 'entregado');
-};
-
-/**
- * Verifica todos los pedidos pendientes contra el stock actual
- * y actualiza su estado si hay disponibilidad
- */
-export const verificarDisponibilidadPedidos = (): PedidoPendiente[] => {
-  const pedidosActualizados: PedidoPendiente[] = [];
-
-  const pedidosPendientes = obtenerPedidosPorEstado('pendiente');
-
-  for (const pedido of pedidosPendientes) {
-    if (!pedido.producto) continue;
-
-    // Si hay suficiente stock, marcar como disponible
-    if (pedido.producto.stock >= pedido.cantidad) {
-      const pedidoActualizado = actualizarEstadoPedido(pedido.id, 'disponible');
-      if (pedidoActualizado) {
-        pedidosActualizados.push(pedidoActualizado);
+    for (const pp of pedido.productos) {
+      const producto = await obtenerProductoPorId(pp.productoId);
+      if (producto) {
+        const nuevoStock = Math.max(0, producto.stock - pp.cantidad);
+        await actualizarStock(pp.productoId, nuevoStock);
       }
     }
   }
 
-  return pedidosActualizados;
+  await actualizarEstadoPedido(pedidoId, 'entregado');
 };
 
 /**
- * Verifica si hay pedidos pendientes que se pueden satisfacer
- * después de actualizar el stock de un producto específico
+ * ✅ Verifica si hay pedidos pendientes que ahora pueden pasar a disponibles
  */
-export const verificarPedidosPorProducto = (productoId: string): PedidoPendiente[] => {
-  const pedidosActualizados: PedidoPendiente[] = [];
-  const producto = obtenerProductoPorId(productoId);
+export const verificarDisponibilidadPedidos = async (): Promise<PedidoPendiente[]> => {
+  const pedidos = await obtenerPedidos();
+  const disponibles: PedidoPendiente[] = [];
 
-  if (!producto) return pedidosActualizados;
+  for (const pedido of pedidos) {
+    if (pedido.estado !== 'pendiente') continue;
 
-  const pedidosPendientes = obtenerPedidosPendientesPorProducto(productoId);
+    let puedeSerDisponible = true;
 
-  // Ordenar pedidos por fecha (más antiguos primero)
-  const pedidosOrdenados = [...pedidosPendientes].sort((a, b) =>
-    new Date(a.fechaSolicitud).getTime() - new Date(b.fechaSolicitud).getTime()
-  );
-
-  let stockDisponible = producto.stock;
-
-  // Intentar satisfacer pedidos hasta agotar el stock disponible
-  for (const pedido of pedidosOrdenados) {
-    if (stockDisponible >= pedido.cantidad) {
-      // Actualizar el estado del pedido a disponible
-      const pedidoActualizado = actualizarEstadoPedido(pedido.id, 'disponible');
-
-      if (pedidoActualizado) {
-        pedidosActualizados.push({
-          ...pedidoActualizado,
-          cliente: obtenerClientePorId(pedido.clienteId),
-          producto
-        });
-
-        // Reducir el stock disponible para cálculos
-        stockDisponible -= pedido.cantidad;
+    for (const pp of pedido.productos) {
+      const producto = await obtenerProductoPorId(pp.productoId);
+      if (!producto || producto.stock < pp.cantidad) {
+        puedeSerDisponible = false;
+        break;
       }
+    }
+
+    if (puedeSerDisponible) {
+      await actualizarEstadoPedido(pedido.id, 'disponible');
+      disponibles.push({ ...pedido, estado: 'disponible' });
     }
   }
 
-  return pedidosActualizados;
+  return disponibles;
 };
+

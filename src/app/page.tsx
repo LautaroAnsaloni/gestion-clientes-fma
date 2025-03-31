@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { obtenerClientes } from '@/data/clienteService'
 import { obtenerProductos } from '@/data/productoService'
-import { obtenerPedidosConDetalles, obtenerPedidosPorEstado } from '@/data/pedidoService'
-import { Cliente, Producto } from '@/types'
+import { obtenerPedidos, obtenerPedidosConDetalles } from '@/data/pedidoService'
+import { Cliente, Producto, PedidoPendiente } from '@/types'
 import { DashboardCard } from '@/components/ui/dashboard-card'
 import { QuickAction } from '@/components/ui/quick-action'
 import { RecentClients } from '@/components/dashboard/recent-clients'
@@ -20,21 +21,21 @@ import {
   PackagePlus,
   ClipboardList,
 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 
 export default function Home() {
   const router = useRouter()
 
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
-  const [pedidos, setPedidos] = useState([])
+  const [pedidos, setPedidos] = useState<PedidoPendiente[]>([])
 
   // 🔁 Obtener datos de Firestore
   useEffect(() => {
     const fetchData = async () => {
       const clientesDB = await obtenerClientes()
       const productosDB = await obtenerProductos()
-      const pedidosDB = obtenerPedidosConDetalles() // aún es síncrono
+      const pedidosDB = await obtenerPedidosConDetalles()
+
       setClientes(clientesDB)
       setProductos(productosDB)
       setPedidos(pedidosDB)
@@ -44,15 +45,19 @@ export default function Home() {
 
   const actualizarDatos = useCallback(async () => {
     const productosDB = await obtenerProductos()
+    const pedidosDB = await obtenerPedidosConDetalles()
+
     setProductos(productosDB)
-    setPedidos(obtenerPedidosConDetalles())
+    setPedidos(pedidosDB)
   }, [])
 
   const totalClientes = clientes.length
   const totalProductos = productos.length
   const productosEnStock = productos.filter(p => p.stock > 0).length
-  const pedidosPendientes = obtenerPedidosPorEstado('pendiente')
-  const pedidosDisponibles = obtenerPedidosPorEstado('disponible')
+
+  // 🔄 Filtrar pedidos por estado localmente
+  const pedidosPendientes = pedidos.filter(p => p.estado === 'pendiente')
+  const pedidosDisponibles = pedidos.filter(p => p.estado === 'disponible')
 
   return (
     <div className="py-6">

@@ -1,6 +1,7 @@
 import '@/app/globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { Toaster } from '@/components/ui/toaster'
 import Link from 'next/link';
 import { Notifications } from '@/components/ui/notifications';
 
@@ -57,6 +58,7 @@ export default function RootLayout({
           </header>
           <main className="container flex-1 py-6">
             {children}
+            <Toaster /> {/* Aquí va el toaster */}
           </main>
           <Notifications />
         </div>

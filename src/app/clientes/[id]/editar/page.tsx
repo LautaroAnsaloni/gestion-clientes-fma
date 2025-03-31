@@ -20,26 +20,26 @@ export default function EditarClientePage({ params }: EditarClientePageProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchCliente = () => {
+    const fetchCliente = async () => {
       try {
-        const clienteEncontrado = obtenerClientePorId(id);
+        const clienteEncontrado = await obtenerClientePorId(id)
         if (clienteEncontrado) {
-          setCliente(clienteEncontrado);
+          setCliente(clienteEncontrado)
         } else {
-          setError('No se encontró el cliente');
+          setError('No se encontró el cliente')
           setTimeout(() => {
-            router.push('/clientes');
-          }, 2000);
+            router.push('/clientes')
+          }, 2000)
         }
       } catch (err) {
-        setError('Error al cargar el cliente');
+        setError('Error al cargar el cliente')
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
-
-    fetchCliente();
-  }, [id, router]);
+    }
+  
+    fetchCliente()
+  }, [id, router])
 
   if (isLoading) {
     return (

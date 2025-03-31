@@ -1,11 +1,11 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { Button } from '@/components/ui/button';
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -13,64 +13,76 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Cliente } from '@/types';
-import { crearCliente, actualizarCliente } from '@/data/clienteService';
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Cliente } from '@/types'
+import { useToast } from '@/hooks/use-toast'
+import { crearCliente, actualizarCliente } from '@/data/clienteService'
 
-// Esquema de validación
+// Validación con Zod
 const clienteSchema = z.object({
   nombre: z.string().min(2, { message: 'El nombre debe tener al menos 2 caracteres' }),
   telefono: z.string().min(5, { message: 'El teléfono debe tener al menos 5 caracteres' }),
   email: z.string().email({ message: 'Debe ser un email válido' }),
-});
+})
 
-type ClienteFormValues = z.infer<typeof clienteSchema>;
+type ClienteFormValues = z.infer<typeof clienteSchema>
 
 interface ClienteFormProps {
-  cliente?: Cliente;
-  onSuccess?: () => void;
+  cliente?: Cliente
+  onSuccess?: () => void
 }
 
 export function ClienteForm({ cliente, onSuccess }: ClienteFormProps) {
-  const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter()
+  const { toast } = useToast()
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Valores por defecto del formulario
   const defaultValues: Partial<ClienteFormValues> = {
     nombre: cliente?.nombre || '',
     telefono: cliente?.telefono || '',
     email: cliente?.email || '',
-  };
+  }
 
   const form = useForm<ClienteFormValues>({
     resolver: zodResolver(clienteSchema),
     defaultValues,
-  });
+  })
 
   const onSubmit = async (values: ClienteFormValues) => {
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
       if (cliente) {
-        // Actualizar cliente existente
-        await actualizarCliente(cliente.id, values);
+        await actualizarCliente(cliente.id, values)
+        toast({
+          title: 'Cliente actualizado',
+          description: `${values.nombre} fue actualizado correctamente.`,
+        })
       } else {
-        // Crear nuevo cliente
-        await crearCliente(values);
+        await crearCliente(values)
+        toast({
+          title: 'Cliente creado',
+          description: `${values.nombre} fue agregado correctamente.`,
+        })
       }
 
       if (onSuccess) {
-        onSuccess();
+        onSuccess()
       } else {
-        router.push('/clientes');
-        router.refresh();
+        router.push('/clientes')
+        router.refresh()
       }
     } catch (error) {
-      console.error('Error al guardar el cliente:', error);
+      console.error('Error al guardar el cliente:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Ocurrió un error al guardar el cliente.',
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   return (
     <Form {...form}>
@@ -118,11 +130,7 @@ export function ClienteForm({ cliente, onSuccess }: ClienteFormProps) {
         />
 
         <div className="flex justify-end space-x-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.back()}
-          >
+          <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancelar
           </Button>
           <Button type="submit" disabled={isSubmitting}>
@@ -131,5 +139,5 @@ export function ClienteForm({ cliente, onSuccess }: ClienteFormProps) {
         </div>
       </form>
     </Form>
-  );
+  )
 }

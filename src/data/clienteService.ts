@@ -1,59 +1,91 @@
-import { Cliente } from '@/types';
-import { clientes as clientesIniciales } from './mockData';
+import { db } from '@/lib/firebase'
+import {
+  collection,
+  addDoc,
+  getDocs,
+  doc,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  Timestamp,
+} from 'firebase/firestore'
+import { Cliente } from '@/types'
 
-// Usamos un array mutable para simular una base de datos
-let clientes = [...clientesIniciales];
-
-/**
- * Obtiene todos los clientes
- */
-export const obtenerClientes = (): Cliente[] => {
-  return [...clientes];
-};
-
-/**
- * Obtiene un cliente por su ID
- */
-export const obtenerClientePorId = (id: string): Cliente | undefined => {
-  return clientes.find(c => c.id === id);
-};
+const clientesRef = collection(db, 'clientes')
 
 /**
- * Crea un nuevo cliente
+ * Obtiene todos los clientes desde Firestore
  */
-export const crearCliente = (cliente: Omit<Cliente, 'id' | 'fechaRegistro'>): Cliente => {
-  const nuevoCliente: Cliente = {
+export const obtenerClientes = async (): Promise<Cliente[]> => {
+  const snapshot = await getDocs(clientesRef)
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data()
+    return {
+      id: docSnap.id,
+      nombre: data.nombre,
+      telefono: data.telefono,
+      email: data.email,
+      avisado: data.avisado ?? false,
+      fechaRegistro: data.fechaRegistro?.toDate().toISOString().split('T')[0] ?? '',
+    }
+  })
+}
+
+/**
+ * Obtiene un cliente por su ID desde Firestore
+ */
+export const obtenerClientePorId = async (id: string): Promise<Cliente | null> => {
+  const docRef = doc(db, 'clientes', id)
+  const docSnap = await getDoc(docRef)
+
+  if (!docSnap.exists()) return null
+
+  const data = docSnap.data()
+  return {
+    id: docSnap.id,
+    nombre: data.nombre,
+    telefono: data.telefono,
+    email: data.email,
+    avisado: data.avisado ?? false,
+    fechaRegistro: data.fechaRegistro?.toDate().toISOString().split('T')[0] ?? '',
+  }
+}
+
+/**
+ * Crea un nuevo cliente en Firestore
+ */
+export const crearCliente = async (
+  cliente: Omit<Cliente, 'id' | 'fechaRegistro'>
+): Promise<Cliente> => {
+  const docRef = await addDoc(clientesRef, {
     ...cliente,
-    id: (clientes.length + 1).toString(),
-    fechaRegistro: new Date().toISOString().split('T')[0]
-  };
+    fechaRegistro: Timestamp.now(),
+    avisado: false,
+  })
 
-  clientes.push(nuevoCliente);
-  return nuevoCliente;
-};
-
-/**
- * Actualiza un cliente existente
- */
-export const actualizarCliente = (id: string, datosActualizados: Partial<Omit<Cliente, 'id' | 'fechaRegistro'>>): Cliente | undefined => {
-  const index = clientes.findIndex(c => c.id === id);
-
-  if (index === -1) return undefined;
-
-  const clienteActualizado = {
-    ...clientes[index],
-    ...datosActualizados
-  };
-
-  clientes[index] = clienteActualizado;
-  return clienteActualizado;
-};
+  return {
+    id: docRef.id,
+    ...cliente,
+    fechaRegistro: new Date().toISOString().split('T')[0],
+    avisado: false,
+  }
+}
 
 /**
- * Elimina un cliente por su ID
+ * Actualiza un cliente en Firestore
  */
-export const eliminarCliente = (id: string): boolean => {
-  const clientesAnteriores = clientes.length;
-  clientes = clientes.filter(c => c.id !== id);
-  return clientesAnteriores > clientes.length;
-};
+export const actualizarCliente = async (
+  id: string,
+  datosActualizados: Partial<Omit<Cliente, 'id' | 'fechaRegistro'>>
+): Promise<void> => {
+  const docRef = doc(db, 'clientes', id)
+  await updateDoc(docRef, datosActualizados)
+}
+
+/**
+ * Elimina un cliente en Firestore
+ */
+export const eliminarCliente = async (id: string): Promise<void> => {
+  const docRef = doc(db, 'clientes', id)
+  await deleteDoc(docRef)
+}

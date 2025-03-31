@@ -1,39 +1,59 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { DataTable } from '@/components/ui/data-table';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { obtenerClientes, eliminarCliente } from '@/data/clienteService';
-import { Cliente } from '@/types';
-import { Edit, Trash, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { DataTable } from '@/components/ui/data-table'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { obtenerClientes, eliminarCliente } from '@/data/clienteService'
+import { Cliente } from '@/types'
+import { useToast } from '@/hooks/use-toast'
+import { Edit, Trash, Plus } from 'lucide-react'
 
 export default function ClientesPage() {
-  const router = useRouter();
-  const [clientes, setClientes] = useState<Cliente[]>(obtenerClientes());
-  const [clienteAEliminar, setClienteAEliminar] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter()
+  const { toast } = useToast()
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [clienteAEliminar, setClienteAEliminar] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  const handleDelete = async () => {
-    if (!clienteAEliminar) return;
-
-    setIsDeleting(true);
-    try {
-      const resultado = eliminarCliente(clienteAEliminar);
-      if (resultado) {
-        setClientes(obtenerClientes());
-      }
-    } catch (error) {
-      console.error('Error al eliminar el cliente:', error);
-    } finally {
-      setIsDeleting(false);
-      setClienteAEliminar(null);
+  // 🔁 Cargar los clientes desde Firestore
+  useEffect(() => {
+    const fetchClientes = async () => {
+      const lista = await obtenerClientes()
+      setClientes(lista)
     }
-  };
+    fetchClientes()
+  }, [])
 
-  const columns = [
+  // 🗑️ Eliminar cliente desde Firestore
+  const handleDelete = async () => {
+    if (!clienteAEliminar) return
+
+    setIsDeleting(true)
+    try {
+      await eliminarCliente(clienteAEliminar)
+      const listaActualizada = await obtenerClientes()
+      setClientes(listaActualizada)
+      toast({
+        title: 'Cliente eliminado',
+        description: 'El cliente fue eliminado correctamente.',
+      });
+    } catch (error) {
+      console.error('Error al eliminar el cliente:', error)
+    } finally {
+      setIsDeleting(false)
+      setClienteAEliminar(null)
+    }
+  }
+
+  // 📊 Columnas de la tabla
+  const columns: {
+    header: string
+    accessorKey: keyof Cliente
+    cell?: (cliente: Cliente) => React.ReactNode
+  }[] = [
     {
       header: 'Nombre',
       accessorKey: 'nombre',
@@ -53,7 +73,7 @@ export default function ClientesPage() {
         <span>{new Date(cliente.fechaRegistro).toLocaleDateString('es-AR')}</span>
       ),
     },
-  ];
+  ]
 
   return (
     <div className="space-y-6">
@@ -98,5 +118,5 @@ export default function ClientesPage() {
         isLoading={isDeleting}
       />
     </div>
-  );
+  )
 }

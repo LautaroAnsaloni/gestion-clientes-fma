@@ -102,15 +102,11 @@ export function ProductoForm({ producto, onSubmit }: ProductoFormProps) {
               <FormLabel>Precio</FormLabel>
               <FormControl>
                 <Input
-                  type="number"
+                  type="text"
                   placeholder="0.00"
-                  {...field}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    field.onChange(
-                      value === "" ? undefined : parseFloat(value)
-                    );
-                  }}
+                  value={field.value?.toString() ?? ""}
+                  onChange={(e) => field.onChange(e.target.value)}
+                  inputMode="decimal" // Muestra teclado numérico en móviles
                 />
               </FormControl>
               <FormMessage />
@@ -126,14 +122,10 @@ export function ProductoForm({ producto, onSubmit }: ProductoFormProps) {
               <FormLabel>Stock</FormLabel>
               <FormControl>
                 <Input
-                  type="number"
+                  type="text"
                   placeholder="0"
-                  {...field}
-                  onChange={(e) =>
-                    field.onChange(
-                      Math.max(0, Math.floor(e.target.valueAsNumber || 0))
-                    )
-                  }
+                  value={field.value?.toString() ?? ""}
+                  onChange={(e) => field.onChange(e.target.value)}
                 />
               </FormControl>
               <FormMessage />
